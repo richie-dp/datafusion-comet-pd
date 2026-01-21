@@ -21,7 +21,7 @@ use crate::{
 };
 use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType, Schema, TimeUnit};
-use datafusion::common::{internal_err, ScalarValue};
+use datafusion::{common::{ScalarValue, internal_err}, physical_expr_common::physical_expr::PhysicalExprClone};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
 use jni::{
@@ -59,6 +59,12 @@ impl Subquery {
 impl Display for Subquery {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Subquery [id: {}]", self.id)
+    }
+}
+
+impl PhysicalExprClone for Subquery {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

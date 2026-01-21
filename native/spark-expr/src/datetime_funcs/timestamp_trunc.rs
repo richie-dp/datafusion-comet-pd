@@ -21,6 +21,7 @@ use arrow::record_batch::RecordBatch;
 use datafusion::common::{DataFusionError, ScalarValue::Utf8};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::hash::Hash;
 use std::{
     any::Any,
@@ -81,6 +82,12 @@ impl Display for TimestampTruncExpr {
             "TimestampTrunc [child:{}, format:{}, timezone: {}]",
             self.child, self.format, self.timezone
         )
+    }
+}
+
+impl PhysicalExprClone for TimestampTruncExpr {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

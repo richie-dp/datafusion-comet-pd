@@ -27,6 +27,8 @@ import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.{SparkSession, SparkSessionExtensions}
+import org.apache.spark.sql.catalyst.FunctionIdentifier
+import org.apache.spark.sql.catalyst.expressions.{Expression, ExpressionInfo}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreeNode
 import org.apache.spark.sql.comet._
@@ -43,6 +45,7 @@ import org.apache.spark.sql.execution.datasources.v2.parquet.ParquetScan
 import org.apache.spark.sql.internal.SQLConf
 
 import org.apache.comet.CometConf._
+import org.apache.comet.expressions.{FinalEtd, PartialEtd, ReduceEtd}
 import org.apache.comet.rules.{CometExecRule, CometScanRule, EliminateRedundantTransitions}
 import org.apache.comet.shims.ShimCometSparkSessionExtensions
 
@@ -60,6 +63,23 @@ class CometSparkSessionExtensions
     extensions.injectColumnar { session => CometExecColumnar(session) }
     extensions.injectQueryStagePrepRule { session => CometScanRule(session) }
     extensions.injectQueryStagePrepRule { session => CometExecRule(session) }
+
+    // Register ETD functions
+    extensions.injectFunction(
+      (
+        new FunctionIdentifier("reduce_etd"),
+        new ExpressionInfo(classOf[ReduceEtd].getName, "reduce_etd"),
+        (children: Seq[Expression]) => ReduceEtd(children.head)))
+    extensions.injectFunction(
+      (
+        new FunctionIdentifier("partial_etd"),
+        new ExpressionInfo(classOf[PartialEtd].getName, "partial_etd"),
+        (children: Seq[Expression]) => PartialEtd(children.head)))
+    extensions.injectFunction(
+      (
+        new FunctionIdentifier("final_etd"),
+        new ExpressionInfo(classOf[FinalEtd].getName, "final_etd"),
+        (children: Seq[Expression]) => FinalEtd(children(0), children(1), children(2))))
   }
 
   case class CometScanColumnar(session: SparkSession) extends ColumnarRule {

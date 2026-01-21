@@ -84,6 +84,7 @@ message Expr {
     MathExpr integral_divide = 59;
     ToPrettyString to_pretty_string = 60;
     UnaryExpr rand = 61;
+    FinalEtd finalEtd = 62;
   }
 }
 
@@ -104,7 +105,23 @@ message AggExpr {
     Stddev stddev = 14;
     Correlation correlation = 15;
     BloomFilterAgg bloomFilterAgg = 16;
+    ReduceEtd reduceEtd = 17;
+    PartialEtd partialEtd = 18;
   }
+}
+
+message ReduceEtd {
+  Expr child = 1;
+}
+
+message PartialEtd {
+  Expr child = 1;
+}
+
+message FinalEtd {
+  Expr col = 1;
+  Expr ts = 2;
+  Expr is_recent = 3;
 }
 
 enum StatisticsType {

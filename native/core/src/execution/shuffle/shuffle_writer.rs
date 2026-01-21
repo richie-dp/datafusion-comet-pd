@@ -25,7 +25,7 @@ use arrow::row::{OwnedRow, RowConverter};
 use async_trait::async_trait;
 use datafusion::common::utils::proxy::VecAllocExt;
 use datafusion::physical_expr::{EquivalenceProperties, Partitioning};
-use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
+use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType, ExecutionPlanClone};
 use datafusion::physical_plan::EmptyRecordBatchStream;
 use datafusion::{
     arrow::{array::*, datatypes::SchemaRef, error::ArrowError, record_batch::RecordBatch},
@@ -124,6 +124,12 @@ impl DisplayAs for ShuffleWriterExec {
             }
             DisplayFormatType::TreeRender => unimplemented!(),
         }
+    }
+}
+
+impl ExecutionPlanClone for ShuffleWriterExec {
+    fn clone_execution_plan(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn ExecutionPlan> {
+        todo!()
     }
 }
 

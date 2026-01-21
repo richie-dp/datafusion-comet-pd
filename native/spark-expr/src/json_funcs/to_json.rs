@@ -26,6 +26,7 @@ use arrow::array::{Array, ArrayRef, RecordBatch, StringArray, StructArray};
 use arrow::datatypes::{DataType, Schema};
 use datafusion::common::Result;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use datafusion::physical_plan::ColumnarValue;
 use std::any::Any;
 use std::fmt::{Debug, Display, Formatter};
@@ -75,6 +76,12 @@ impl PartialEq<dyn Any> for ToJson {
         } else {
             false
         }
+    }
+}
+
+impl PhysicalExprClone for ToJson {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

@@ -29,7 +29,7 @@ use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::ffi::FFI_ArrowArray;
 use arrow::ffi::FFI_ArrowSchema;
 use datafusion::common::{arrow_datafusion_err, DataFusionError, Result as DataFusionResult};
-use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
+use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType, ExecutionPlanClone};
 use datafusion::physical_plan::metrics::{
     BaselineMetrics, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet, Time,
 };
@@ -323,6 +323,12 @@ fn scan_schema(input_batch: &InputBatch, data_types: &[DataType]) -> SchemaRef {
     };
 
     Arc::new(Schema::new(fields))
+}
+
+impl ExecutionPlanClone for ScanExec {
+    fn clone_execution_plan(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn ExecutionPlan> {
+        todo!()
+    }
 }
 
 impl ExecutionPlan for ScanExec {

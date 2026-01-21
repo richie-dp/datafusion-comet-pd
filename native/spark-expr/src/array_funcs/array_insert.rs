@@ -29,6 +29,7 @@ use datafusion::common::{
 };
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::hash::Hash;
 use std::{
     any::Any,
@@ -89,6 +90,12 @@ impl ArrayInsert {
                 "Unexpected src array type in ArrayInsert: {data_type:?}"
             ))),
         }
+    }
+}
+
+impl PhysicalExprClone for ArrayInsert {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

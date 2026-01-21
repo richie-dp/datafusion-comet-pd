@@ -30,7 +30,7 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType, Field, FieldRef, Schema, SchemaRef};
 use arrow::error::ArrowError;
-use datafusion::common::{arrow_datafusion_err, DataFusionError, Result as DataFusionResult};
+use datafusion::{common::{DataFusionError, Result as DataFusionResult, arrow_datafusion_err}, physical_plan::execution_plan::ExecutionPlanClone};
 use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion::physical_plan::metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::{execution::TaskContext, physical_expr::*, physical_plan::*};
@@ -101,6 +101,12 @@ impl DisplayAs for CopyExec {
             }
             DisplayFormatType::TreeRender => unimplemented!(),
         }
+    }
+}
+
+impl ExecutionPlanClone for CopyExec {
+    fn clone_execution_plan(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn ExecutionPlan> {
+        todo!()
     }
 }
 

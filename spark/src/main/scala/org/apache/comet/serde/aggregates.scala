@@ -28,6 +28,7 @@ import org.apache.spark.sql.types.{ByteType, DecimalType, IntegerType, LongType,
 
 import org.apache.comet.CometConf
 import org.apache.comet.CometSparkSessionExtensions.withInfo
+import org.apache.comet.expressions.{FinalEtd, PartialEtd, ReduceEtd}
 import org.apache.comet.serde.QueryPlanSerde.{exprToProto, serializeDataType}
 
 object CometMin extends CometAggregateExpressionSerde {
@@ -678,6 +679,44 @@ object CometBloomFilterAggregate extends CometAggregateExpressionSerde {
         bloomFilter.child,
         bloomFilter.estimatedNumItemsExpression,
         bloomFilter.numBitsExpression)
+      None
+    }
+  }
+}
+
+object CometReduceEtd extends CometAggregateExpressionSerde {
+  override def convert(
+      aggExpr: AggregateExpression,
+      expr: Expression,
+      inputs: Seq[Attribute],
+      binding: Boolean,
+      conf: SQLConf): Option[ExprOuterClass.AggExpr] = {
+    val reduceEtd = expr.asInstanceOf[ReduceEtd]
+    val childExpr = exprToProto(reduceEtd.child, inputs, binding)
+    if (childExpr.isDefined) {
+      val builder = ExprOuterClass.ReduceEtd.newBuilder()
+      builder.setChild(childExpr.get)
+      Some(ExprOuterClass.AggExpr.newBuilder().setReduceEtd(builder).build())
+    } else {
+      None
+    }
+  }
+}
+
+object CometPartialEtd extends CometAggregateExpressionSerde {
+  override def convert(
+      aggExpr: AggregateExpression,
+      expr: Expression,
+      inputs: Seq[Attribute],
+      binding: Boolean,
+      conf: SQLConf): Option[ExprOuterClass.AggExpr] = {
+    val partialEtd = expr.asInstanceOf[PartialEtd]
+    val childExpr = exprToProto(partialEtd.child, inputs, binding)
+    if (childExpr.isDefined) {
+      val builder = ExprOuterClass.PartialEtd.newBuilder()
+      builder.setChild(childExpr.get)
+      Some(ExprOuterClass.AggExpr.newBuilder().setPartialEtd(builder).build())
+    } else {
       None
     }
   }

@@ -19,6 +19,7 @@ use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType, Schema};
 use datafusion::common::{internal_err, Result};
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use datafusion::physical_plan::ColumnarValue;
 use std::fmt::Formatter;
 use std::{hash::Hash, sync::Arc};
@@ -55,6 +56,12 @@ impl UnboundColumn {
 impl std::fmt::Display for UnboundColumn {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}, datatype: {}", self.name, self.datatype)
+    }
+}
+
+impl PhysicalExprClone for UnboundColumn {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

@@ -43,6 +43,7 @@ use datafusion::common::{
     cast::as_generic_string_array, internal_err, Result as DataFusionResult, ScalarValue,
 };
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use datafusion::physical_plan::ColumnarValue;
 use num::{
     cast::AsPrimitive, integer::div_floor, traits::CheckedNeg, CheckedSub, Integer, Num,
@@ -1717,6 +1718,12 @@ impl Display for Cast {
             "Cast [data_type: {}, timezone: {}, child: {}, eval_mode: {:?}]",
             self.data_type, self.cast_options.timezone, self.child, &self.cast_options.eval_mode
         )
+    }
+}
+
+impl PhysicalExprClone for Cast {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

@@ -23,6 +23,7 @@ use arrow::record_batch::RecordBatch;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::{
     any::Any,
     fmt::{Display, Formatter},
@@ -64,6 +65,12 @@ impl Display for SubstringExpr {
             "StringSpace [start: {}, len: {}, child: {}]",
             self.start, self.len, self.child
         )
+    }
+}
+
+impl PhysicalExprClone for SubstringExpr {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

@@ -19,7 +19,7 @@ use arrow::array::{RecordBatch, RecordBatchOptions};
 use arrow::datatypes::SchemaRef;
 use datafusion::common::DataFusionError;
 use datafusion::physical_expr::{EquivalenceProperties, PhysicalExpr};
-use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
+use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType, ExecutionPlanClone};
 use datafusion::{
     execution::TaskContext,
     physical_plan::{
@@ -87,6 +87,12 @@ impl DisplayAs for ExpandExec {
             }
             DisplayFormatType::TreeRender => unimplemented!(),
         }
+    }
+}
+
+impl ExecutionPlanClone for ExpandExec {
+    fn clone_execution_plan(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn ExecutionPlan> {
+        todo!()
     }
 }
 

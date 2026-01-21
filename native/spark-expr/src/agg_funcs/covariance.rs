@@ -161,7 +161,7 @@ impl CovarianceAccumulator {
 }
 
 impl Accumulator for CovarianceAccumulator {
-    fn state(&mut self) -> Result<Vec<ScalarValue>> {
+    fn state(&self) -> Result<Vec<ScalarValue>> {
         Ok(vec![
             ScalarValue::from(self.count),
             ScalarValue::from(self.mean1),
@@ -279,7 +279,7 @@ impl Accumulator for CovarianceAccumulator {
         Ok(())
     }
 
-    fn evaluate(&mut self) -> Result<ScalarValue> {
+    fn evaluate(&self) -> Result<ScalarValue> {
         if self.count == 0.0 {
             return Ok(ScalarValue::Float64(None));
         }

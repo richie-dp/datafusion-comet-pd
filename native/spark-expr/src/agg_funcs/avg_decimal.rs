@@ -212,7 +212,7 @@ fn make_decimal128(value: Option<i128>, precision: u8, scale: i8) -> ScalarValue
 }
 
 impl Accumulator for AvgDecimalAccumulator {
-    fn state(&mut self) -> Result<Vec<ScalarValue>> {
+    fn state(&self) -> Result<Vec<ScalarValue>> {
         Ok(vec![
             ScalarValue::Decimal128(self.sum, self.sum_precision, self.sum_scale),
             ScalarValue::from(self.count),
@@ -264,7 +264,7 @@ impl Accumulator for AvgDecimalAccumulator {
         Ok(())
     }
 
-    fn evaluate(&mut self) -> Result<ScalarValue> {
+    fn evaluate(&self) -> Result<ScalarValue> {
         let scaler = 10_i128.pow(self.target_scale.saturating_sub(self.sum_scale) as u32);
         let target_min = MIN_DECIMAL128_FOR_EACH_PRECISION[self.target_precision as usize];
         let target_max = MAX_DECIMAL128_FOR_EACH_PRECISION[self.target_precision as usize];

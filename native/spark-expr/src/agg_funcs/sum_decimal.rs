@@ -204,7 +204,7 @@ impl Accumulator for SumDecimalAccumulator {
         Ok(())
     }
 
-    fn evaluate(&mut self) -> DFResult<ScalarValue> {
+    fn evaluate(&self) -> DFResult<ScalarValue> {
         // For each group:
         //   1. if `is_empty` is true, it means either there is no value or all values for the group
         //      are null, in this case we'll return null
@@ -227,7 +227,7 @@ impl Accumulator for SumDecimalAccumulator {
         std::mem::size_of_val(self)
     }
 
-    fn state(&mut self) -> DFResult<Vec<ScalarValue>> {
+    fn state(&self) -> DFResult<Vec<ScalarValue>> {
         let sum = if self.is_not_null {
             ScalarValue::try_new_decimal128(self.sum, self.precision, self.scale)?
         } else {

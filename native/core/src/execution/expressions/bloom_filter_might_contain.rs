@@ -21,6 +21,7 @@ use arrow::datatypes::{DataType, Schema};
 use arrow::record_batch::RecordBatch;
 use datafusion::common::{internal_err, Result, ScalarValue};
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use datafusion::physical_plan::ColumnarValue;
 use std::fmt::Formatter;
 use std::hash::Hash;
@@ -88,6 +89,12 @@ impl BloomFilterMightContain {
             value_expr,
             bloom_filter,
         })
+    }
+}
+
+impl PhysicalExprClone for BloomFilterMightContain {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

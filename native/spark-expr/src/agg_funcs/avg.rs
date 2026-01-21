@@ -145,7 +145,7 @@ pub struct AvgAccumulator {
 }
 
 impl Accumulator for AvgAccumulator {
-    fn state(&mut self) -> Result<Vec<ScalarValue>> {
+    fn state(&self) -> Result<Vec<ScalarValue>> {
         Ok(vec![
             ScalarValue::Float64(self.sum),
             ScalarValue::from(self.count),
@@ -174,7 +174,7 @@ impl Accumulator for AvgAccumulator {
         Ok(())
     }
 
-    fn evaluate(&mut self) -> Result<ScalarValue> {
+    fn evaluate(&self) -> Result<ScalarValue> {
         if self.count == 0 {
             // If all input are nulls, count will be 0 and we will get null after the division.
             // This is consistent with Spark Average implementation.

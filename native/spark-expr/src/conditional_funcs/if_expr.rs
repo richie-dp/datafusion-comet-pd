@@ -19,7 +19,7 @@ use arrow::{
     datatypes::{DataType, Schema},
     record_batch::RecordBatch,
 };
-use datafusion::common::Result;
+use datafusion::{common::Result, physical_expr_common::physical_expr::PhysicalExprClone};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::{expressions::CaseExpr, PhysicalExpr};
 use std::fmt::Formatter;
@@ -79,6 +79,12 @@ impl IfExpr {
                 CaseExpr::try_new(None, vec![(if_expr, true_expr)], Some(false_expr)).unwrap(),
             ),
         }
+    }
+}
+
+impl PhysicalExprClone for IfExpr {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

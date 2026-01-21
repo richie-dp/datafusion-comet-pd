@@ -38,6 +38,9 @@ futures = { workspace = true }
 twox-hash = "2.0.0"
 rand = { workspace = true }
 
+fusion-sql = { path = "/Users/macbookair/vscode/vector/apexdb-fusion/xf-udf/fusion-sql" }
+
+
 [dev-dependencies]
 arrow = {workspace = true}
 criterion = "0.5.1"

@@ -23,6 +23,7 @@ use arrow::{
 };
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::hash::Hash;
 use std::{
     any::Any,
@@ -52,6 +53,12 @@ impl Hash for NormalizeNaNAndZero {
 impl NormalizeNaNAndZero {
     pub fn new(data_type: DataType, child: Arc<dyn PhysicalExpr>) -> Self {
         Self { data_type, child }
+    }
+}
+
+impl PhysicalExprClone for NormalizeNaNAndZero {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

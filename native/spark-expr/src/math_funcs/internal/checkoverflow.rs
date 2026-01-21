@@ -24,6 +24,7 @@ use arrow::{
 use datafusion::common::{DataFusionError, ScalarValue};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::hash::Hash;
 use std::{
     any::Any,
@@ -75,6 +76,12 @@ impl Display for CheckOverflow {
             "CheckOverflow [datatype: {}, fail_on_error: {}, child: {}]",
             self.data_type, self.fail_on_error, self.child
         )
+    }
+}
+
+impl PhysicalExprClone for CheckOverflow {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

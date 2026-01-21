@@ -104,8 +104,9 @@ use datafusion_comet_proto::{
 };
 use datafusion_comet_spark_expr::{
     ArrayInsert, Avg, AvgDecimal, Cast, CheckOverflow, Contains, Correlation, Covariance,
-    CreateNamedStruct, EndsWith, GetArrayStructFields, GetStructField, IfExpr, Like, ListExtract,
-    NormalizeNaNAndZero, RLike, RandExpr, SparkCastOptions, StartsWith, Stddev, StringSpaceExpr,
+    CreateNamedStruct, EndsWith, FinalEtd, GetArrayStructFields, GetStructField, IfExpr, Like,
+    ListExtract, NormalizeNaNAndZero, PartialEtd, RLike, RandExpr, ReduceEtd, SparkCastOptions,
+    StartsWith, Stddev, StringSpaceExpr,
     SubstringExpr, SumDecimal, TimestampTruncExpr, ToJson, UnboundColumn, Variance,
 };
 use itertools::Itertools;
@@ -796,6 +797,17 @@ impl PhysicalPlanner {
                     pos_expr,
                     item_expr,
                     expr.legacy_negative_index,
+                )))
+            }
+            ExprStruct::FinalEtd(expr) => {
+                let col = self.create_expr(expr.col.as_ref().unwrap(), Arc::clone(&input_schema))?;
+                let ts = self.create_expr(expr.ts.as_ref().unwrap(), Arc::clone(&input_schema))?;
+                let is_recent = self.create_expr(expr.is_recent.as_ref().unwrap(), input_schema)?;
+                Ok(Arc::new(ScalarFunctionExpr::new(
+                    "final_etd",
+                    Arc::new(ScalarUDF::new_from_impl(FinalEtd::new())),
+                    vec![col, ts, is_recent],
+                    Arc::new(Field::new("final_etd", DataType::Int64, true)),
                 )))
             }
             ExprStruct::Rand(expr) => {
@@ -1979,6 +1991,18 @@ impl PhysicalPlanner {
                     datatype,
                 ));
                 Self::create_aggr_func_expr("bloom_filter_agg", schema, vec![child], func)
+            }
+            AggExprStruct::ReduceEtd(expr) => {
+                let child = self.create_expr(expr.child.as_ref().unwrap(), Arc::clone(&schema))?;
+                let func = AggregateUDF::new_from_impl(ReduceEtd::new("reduce_etd"));
+
+                Self::create_aggr_func_expr("reduce_etd", schema, vec![child], func)
+            }
+            AggExprStruct::PartialEtd(expr) => {
+                let child = self.create_expr(expr.child.as_ref().unwrap(), Arc::clone(&schema))?;
+                let func = AggregateUDF::new_from_impl(PartialEtd::new("partial_etd"));
+
+                Self::create_aggr_func_expr("partial_etd", schema, vec![child], func)
             }
         }
     }

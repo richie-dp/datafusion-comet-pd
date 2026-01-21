@@ -21,6 +21,7 @@ use arrow::record_batch::RecordBatch;
 use datafusion::common::{DataFusionError, Result as DataFusionResult, ScalarValue};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::{
     any::Any,
     fmt::{Display, Formatter},
@@ -58,6 +59,12 @@ impl GetStructField {
                 "Expect struct field, got {data_type:?}"
             ))),
         }
+    }
+}
+
+impl PhysicalExprClone for GetStructField {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

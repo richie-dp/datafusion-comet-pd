@@ -23,6 +23,7 @@ use arrow::datatypes::{DataType, Schema};
 use arrow::{compute::kernels::numeric::neg_wrapping, datatypes::IntervalDayTimeType};
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::sort_properties::ExprProperties;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use datafusion::{
     logical_expr::{interval_arithmetic::Interval, ColumnarValue},
     physical_expr::PhysicalExpr,
@@ -92,6 +93,12 @@ impl NegativeExpr {
 impl std::fmt::Display for NegativeExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "(- {})", self.arg)
+    }
+}
+
+impl PhysicalExprClone for NegativeExpr {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

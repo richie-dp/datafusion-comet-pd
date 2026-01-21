@@ -23,6 +23,7 @@ use datafusion::common::ScalarValue;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::any::Any;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -143,6 +144,12 @@ impl Eq for RandExpr {}
 impl Hash for RandExpr {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.children().hash(state);
+    }
+}
+
+impl PhysicalExprClone for RandExpr {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

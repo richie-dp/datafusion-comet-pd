@@ -28,6 +28,7 @@ use arrow::{
 use datafusion::common::{DataFusionError, ScalarValue::Utf8};
 use datafusion::logical_expr::ColumnarValue;
 use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr_common::physical_expr::PhysicalExprClone;
 use std::{
     any::Any,
     fmt::{Display, Formatter},
@@ -65,6 +66,12 @@ macro_rules! make_predicate_function {
         impl PartialEq for $name {
             fn eq(&self, other: &Self) -> bool {
                 self.left.eq(&other.left) && self.right.eq(&other.right)
+            }
+        }
+
+        impl PhysicalExprClone for $name {
+            fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+                todo!()
             }
         }
 

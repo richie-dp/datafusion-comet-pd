@@ -23,7 +23,7 @@ use arrow::compute::take;
 use arrow::datatypes::{DataType, Schema};
 use datafusion::common::{internal_err, Result};
 use datafusion::physical_expr::PhysicalExpr;
-use datafusion::physical_expr_common::physical_expr::DynEq;
+use datafusion::physical_expr_common::physical_expr::{DynEq, PhysicalExprClone};
 use datafusion::physical_plan::ColumnarValue;
 use regex::Regex;
 use std::any::Any;
@@ -100,6 +100,12 @@ impl Display for RLike {
             "RLike [child: {}, pattern: {}] ",
             self.child, self.pattern_str
         )
+    }
+}
+
+impl PhysicalExprClone for RLike {
+    fn clone_physical_expr(&self, _: &Arc<datafusion::physical_plan::execution_plan::ExecuteCacheContext>) -> Arc<dyn PhysicalExpr> {
+        todo!()
     }
 }
 

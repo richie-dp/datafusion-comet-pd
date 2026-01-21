@@ -39,7 +39,7 @@ import org.apache.spark.sql.comet.execution.shuffle.CometShuffleExchangeExec
 import org.apache.spark.sql.execution
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.adaptive.{BroadcastQueryStageExec, ShuffleQueryStageExec}
-import org.apache.spark.sql.execution.aggregate.{BaseAggregateExec, HashAggregateExec, ObjectHashAggregateExec}
+import org.apache.spark.sql.execution.aggregate.{BaseAggregateExec, HashAggregateExec, ObjectHashAggregateExec, SortAggregateExec}
 import org.apache.spark.sql.execution.datasources.{FilePartition, FileScanRDD, PartitionedFile}
 import org.apache.spark.sql.execution.datasources.v2.{DataSourceRDD, DataSourceRDDPartition}
 import org.apache.spark.sql.execution.exchange.{BroadcastExchangeExec, ReusedExchangeExec, ShuffleExchangeExec}
@@ -422,6 +422,8 @@ object QueryPlanSerde extends Logging with CometExprShim {
       case _: StddevPop => CometStddevPop
       case _: Corr => CometCorr
       case _: BloomFilterAggregate => CometBloomFilterAggregate
+      case _: ReduceEtd => CometReduceEtd
+      case _: PartialEtd => CometPartialEtd
       case fn =>
         val msg = s"unsupported Spark aggregate function: ${fn.prettyName}"
         emitWarning(msg)
@@ -580,6 +582,20 @@ object QueryPlanSerde extends Logging with CometExprShim {
     }
 
     expr match {
+      case e: FinalEtd =>
+        val col = exprToProtoInternal(e.col, inputs, binding)
+        val ts = exprToProtoInternal(e.ts, inputs, binding)
+        val isRecent = exprToProtoInternal(e.isRecent, inputs, binding)
+        if (col.isDefined && ts.isDefined && isRecent.isDefined) {
+          val builder = ExprOuterClass.FinalEtd.newBuilder()
+          builder.setCol(col.get)
+          builder.setTs(ts.get)
+          builder.setIsRecent(isRecent.get)
+          Some(ExprOuterClass.Expr.newBuilder().setFinalEtd(builder).build())
+        } else {
+          None
+        }
+
       case a @ Alias(_, _) =>
         val r = exprToProtoInternal(a.child, inputs, binding)
         if (r.isEmpty) {
@@ -2438,7 +2454,8 @@ object QueryPlanSerde extends Logging with CometExprShim {
 
       case aggregate: BaseAggregateExec
           if (aggregate.isInstanceOf[HashAggregateExec] ||
-            aggregate.isInstanceOf[ObjectHashAggregateExec]) &&
+            aggregate.isInstanceOf[ObjectHashAggregateExec] ||
+            aggregate.isInstanceOf[SortAggregateExec]) &&
             CometConf.COMET_EXEC_AGGREGATE_ENABLED.get(conf) =>
         val groupingExpressions = aggregate.groupingExpressions
         val aggregateExpressions = aggregate.aggregateExpressions
