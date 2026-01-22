@@ -240,6 +240,8 @@ public abstract class CometVector extends ColumnVector {
       return new CometMapVector(vector, useDecimal128, dictionaryProvider);
     } else if (vector instanceof ListVector) {
       return new CometListVector(vector, useDecimal128, dictionaryProvider);
+    } else if (vector instanceof org.apache.arrow.vector.complex.FixedSizeListVector) {
+      return new CometFixedSizeListVector(vector, useDecimal128, dictionaryProvider);
     } else {
       DictionaryEncoding dictionaryEncoding = vector.getField().getDictionary();
       CometPlainVector cometVector = new CometPlainVector(vector, useDecimal128);

@@ -69,6 +69,9 @@ private[arrow] object ArrowWriter {
       case (ArrayType(_, _), vector: ListVector) =>
         val elementVector = createFieldWriter(vector.getDataVector())
         new ArrayWriter(vector, elementVector)
+      case (ArrayType(_, _), vector: FixedSizeListVector) =>
+        val elementVector = createFieldWriter(vector.getDataVector())
+        new FixedSizeListWriter(vector, elementVector)
       case (MapType(_, _, _), vector: MapVector) =>
         val structVector = vector.getDataVector.asInstanceOf[StructVector]
         val keyWriter = createFieldWriter(structVector.getChild(MapVector.KEY_NAME))
@@ -379,6 +382,36 @@ private[arrow] class ArrayWriter(val valueVector: ListVector, val elementWriter:
       i += 1
     }
     valueVector.endValue(count, array.numElements())
+  }
+
+  override def finish(): Unit = {
+    super.finish()
+    elementWriter.finish()
+  }
+
+  override def reset(): Unit = {
+    super.reset()
+    elementWriter.reset()
+  }
+}
+
+private[arrow] class FixedSizeListWriter(
+    val valueVector: FixedSizeListVector,
+    val elementWriter: ArrowFieldWriter)
+    extends ArrowFieldWriter {
+
+  override def setNull(): Unit = {}
+
+  override def setValue(input: SpecializedGetters, ordinal: Int): Unit = {
+    val array = input.getArray(ordinal)
+    var i = 0
+    valueVector.startNewValue(count)
+    while (i < array.numElements()) {
+      elementWriter.write(array, i)
+      i += 1
+    }
+    // FixedSizeListVector has fixed size, so no need to call endValue
+    // The list size is determined by the vector's listSize property
   }
 
   override def finish(): Unit = {

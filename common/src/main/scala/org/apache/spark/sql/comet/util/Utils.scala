@@ -27,7 +27,7 @@ import scala.collection.JavaConverters._
 
 import org.apache.arrow.c.CDataDictionaryProvider
 import org.apache.arrow.vector.{BigIntVector, BitVector, DateDayVector, DecimalVector, FieldVector, FixedSizeBinaryVector, Float4Vector, Float8Vector, IntVector, SmallIntVector, TimeStampMicroTZVector, TimeStampMicroVector, TinyIntVector, ValueVector, VarBinaryVector, VarCharVector, VectorSchemaRoot}
-import org.apache.arrow.vector.complex.{ListVector, MapVector, StructVector}
+import org.apache.arrow.vector.complex.{FixedSizeListVector, ListVector, MapVector, StructVector}
 import org.apache.arrow.vector.dictionary.DictionaryProvider
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types._
@@ -68,6 +68,12 @@ object Utils {
         val valueType = fromArrowField(elementField.getChildren.get(1))
         MapType(keyType, valueType, elementField.getChildren.get(1).isNullable)
       case ArrowType.List.INSTANCE =>
+        val elementField = field.getChildren().get(0)
+        val elementType = fromArrowField(elementField)
+        ArrayType(elementType, containsNull = elementField.isNullable)
+      case _: ArrowType.FixedSizeList =>
+        // FixedSizeList should be converted to ArrayType in Spark
+        // Spark's ArrayType doesn't support fixed size, so we treat it as a regular array
         val elementField = field.getChildren().get(0)
         val elementType = fromArrowField(elementField)
         ArrayType(elementType, containsNull = elementField.isNullable)
@@ -278,7 +284,7 @@ object Utils {
           _: BigIntVector | _: Float4Vector | _: Float8Vector | _: VarCharVector |
           _: DecimalVector | _: DateDayVector | _: TimeStampMicroTZVector | _: VarBinaryVector |
           _: FixedSizeBinaryVector | _: TimeStampMicroVector | _: StructVector | _: ListVector |
-          _: MapVector) =>
+          _: FixedSizeListVector | _: MapVector) =>
         v.asInstanceOf[FieldVector]
       case _ =>
         throw new SparkException(s"Unsupported Arrow Vector for $reason: ${valueVector.getClass}")
