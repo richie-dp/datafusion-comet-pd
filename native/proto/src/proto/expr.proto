@@ -85,6 +85,7 @@ message Expr {
     ToPrettyString to_pretty_string = 60;
     UnaryExpr rand = 61;
     FinalEtd finalEtd = 62;
+    FinalAvg finalAvg = 63;
   }
 }
 
@@ -107,6 +108,9 @@ message AggExpr {
     BloomFilterAgg bloomFilterAgg = 16;
     ReduceEtd reduceEtd = 17;
     PartialEtd partialEtd = 18;
+    ReduceAvg reduceAvg = 19;
+    FinalAvg finalAvg = 20;
+    FinalEtd finalEtd = 21;
   }
 }
 
@@ -122,6 +126,14 @@ message FinalEtd {
   Expr col = 1;
   Expr ts = 2;
   Expr is_recent = 3;
+}
+
+message ReduceAvg {
+  Expr child = 1;
+}
+
+message FinalAvg {
+  Expr col = 1;
 }
 
 enum StatisticsType {

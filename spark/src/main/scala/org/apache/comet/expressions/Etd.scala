@@ -25,7 +25,7 @@ import org.apache.spark.sql.catalyst.expressions.aggregate.ImperativeAggregate
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, CodeGenerator, ExprCode}
 import org.apache.spark.sql.catalyst.expressions.codegen.Block._
 import org.apache.spark.sql.catalyst.util.ArrayData
-import org.apache.spark.sql.types.{ArrayType, DataType, LongType, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, BooleanType, DataType, LongType, StructField, StructType}
 
 case class ReduceEtd(
     child: Expression,
@@ -211,53 +211,126 @@ case class PartialEtd(
     copy(child = newChildren.head)
 }
 
-case class FinalEtd(col: Expression, ts: Expression, isRecent: Expression) extends Expression {
+case class FinalEtd(
+    col: Expression,
+    ts: Expression,
+    isRecent: Expression,
+    override val mutableAggBufferOffset: Int = 0,
+    override val inputAggBufferOffset: Int = 0)
+    extends ImperativeAggregate {
   override def children: Seq[Expression] = Seq(col, ts, isRecent)
   override def nullable: Boolean = true
   override def dataType: DataType = LongType
+  override val aggBufferAttributes: Seq[AttributeReference] =
+    Seq(
+      AttributeReference("et_early", LongType, nullable = true)(),
+      AttributeReference("et_latest", LongType, nullable = true)(),
+      AttributeReference("ts", LongType, nullable = true)(),
+      AttributeReference("is_recent", BooleanType, nullable = true)())
+  override val aggBufferSchema: StructType =
+    StructType(
+      Seq(
+        StructField("et_early", LongType, nullable = true),
+        StructField("et_latest", LongType, nullable = true),
+        StructField("ts", LongType, nullable = true),
+        StructField("is_recent", BooleanType, nullable = true)))
+  override val inputAggBufferAttributes: Seq[AttributeReference] =
+    aggBufferAttributes
   override def prettyName: String = "final_etd"
 
-  override def eval(input: InternalRow): Any = {
-    val colVal = col.eval(input).asInstanceOf[ArrayData]
+  override def withNewMutableAggBufferOffset(newOffset: Int): ImperativeAggregate =
+    copy(mutableAggBufferOffset = newOffset)
+
+  override def withNewInputAggBufferOffset(newOffset: Int): ImperativeAggregate =
+    copy(inputAggBufferOffset = newOffset)
+
+  override def initialize(buffer: InternalRow): Unit = {
+    buffer.setNullAt(mutableAggBufferOffset)
+    buffer.setNullAt(mutableAggBufferOffset + 1)
+    buffer.setNullAt(mutableAggBufferOffset + 2)
+    buffer.setNullAt(mutableAggBufferOffset + 3)
+  }
+
+  override def update(buffer: InternalRow, input: InternalRow): Unit = {
+    val colVal = col.eval(input)
     val tsVal = ts.eval(input)
     val isRecentVal = isRecent.eval(input)
-    if (colVal == null || tsVal == null || isRecentVal == null || colVal.numElements() < 2) {
+    if (colVal != null && tsVal != null && isRecentVal != null) {
+      val arrayData = colVal.asInstanceOf[ArrayData]
+      if (arrayData.numElements() >= 2 && !arrayData.isNullAt(0) && !arrayData.isNullAt(1)) {
+        val inputEarly = arrayData.getLong(0)
+        val inputLatest = arrayData.getLong(1)
+        val currentTs = tsVal.asInstanceOf[Long]
+        val recent = isRecentVal.asInstanceOf[Boolean]
+        if (buffer.isNullAt(mutableAggBufferOffset)) {
+          buffer.setLong(mutableAggBufferOffset, inputEarly)
+          buffer.setLong(mutableAggBufferOffset + 1, inputLatest)
+          buffer.setLong(mutableAggBufferOffset + 2, currentTs)
+          buffer.setBoolean(mutableAggBufferOffset + 3, recent)
+        } else {
+          val early = buffer.getLong(mutableAggBufferOffset)
+          val latest = buffer.getLong(mutableAggBufferOffset + 1)
+          if (inputEarly < early) buffer.setLong(mutableAggBufferOffset, inputEarly)
+          if (inputLatest > latest) buffer.setLong(mutableAggBufferOffset + 1, inputLatest)
+          // Keep the latest ts and is_recent values
+          buffer.setLong(mutableAggBufferOffset + 2, currentTs)
+          buffer.setBoolean(mutableAggBufferOffset + 3, recent)
+        }
+      }
+    }
+  }
+
+  override def merge(buffer: InternalRow, inputBuffer: InternalRow): Unit = {
+    if (!inputBuffer.isNullAt(inputAggBufferOffset)) {
+      val inputEarly = inputBuffer.getLong(inputAggBufferOffset)
+      val inputLatest = inputBuffer.getLong(inputAggBufferOffset + 1)
+      val inputTs = inputBuffer.getLong(inputAggBufferOffset + 2)
+      val inputRecent = inputBuffer.getBoolean(inputAggBufferOffset + 3)
+      if (buffer.isNullAt(mutableAggBufferOffset)) {
+        buffer.setLong(mutableAggBufferOffset, inputEarly)
+        buffer.setLong(mutableAggBufferOffset + 1, inputLatest)
+        buffer.setLong(mutableAggBufferOffset + 2, inputTs)
+        buffer.setBoolean(mutableAggBufferOffset + 3, inputRecent)
+      } else {
+        val early = buffer.getLong(mutableAggBufferOffset)
+        val latest = buffer.getLong(mutableAggBufferOffset + 1)
+        if (inputEarly < early) buffer.setLong(mutableAggBufferOffset, inputEarly)
+        if (inputLatest > latest) buffer.setLong(mutableAggBufferOffset + 1, inputLatest)
+        // Keep the latest ts and is_recent values
+        buffer.setLong(mutableAggBufferOffset + 2, inputTs)
+        buffer.setBoolean(mutableAggBufferOffset + 3, inputRecent)
+      }
+    }
+  }
+
+  override def eval(input: InternalRow): Any = {
+    if (input.isNullAt(mutableAggBufferOffset)) {
       null
     } else {
-      val early = colVal.getLong(0)
-      val latest = colVal.getLong(1)
-      val currentTs = tsVal.asInstanceOf[Long]
-      if (isRecentVal.asInstanceOf[Boolean]) currentTs - latest else currentTs - early
+      val early = input.getLong(mutableAggBufferOffset)
+      val latest = input.getLong(mutableAggBufferOffset + 1)
+      val currentTs = input.getLong(mutableAggBufferOffset + 2)
+      val recent = input.getBoolean(mutableAggBufferOffset + 3)
+      if (recent) currentTs - latest else currentTs - early
     }
   }
 
   override protected def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
     val thisObj = ctx.addReferenceObj("this", this, this.getClass.getName)
-    val colEval = col.genCode(ctx)
-    val tsEval = ts.genCode(ctx)
-    val isRecentEval = isRecent.genCode(ctx)
     val javaType = CodeGenerator.javaType(dataType)
     val defaultVal = CodeGenerator.defaultValue(dataType)
-
     ev.copy(code = code"""
-      ${colEval.code}
-      ${tsEval.code}
-      ${isRecentEval.code}
-      boolean ${ev.isNull} = ${colEval.isNull} || ${tsEval.isNull} || ${isRecentEval.isNull};
+      boolean ${ev.isNull} = $thisObj.isNullAt($mutableAggBufferOffset);
       $javaType ${ev.value} = $defaultVal;
       if (!${ev.isNull}) {
-        ArrayData colVal = (ArrayData) ${colEval.value};
-        if (colVal.numElements() < 2) {
-          ${ev.isNull} = true;
+        long early = $thisObj.getLong($mutableAggBufferOffset);
+        long latest = $thisObj.getLong($mutableAggBufferOffset + 1);
+        long currentTs = $thisObj.getLong($mutableAggBufferOffset + 2);
+        boolean recent = $thisObj.getBoolean($mutableAggBufferOffset + 3);
+        if (recent) {
+          ${ev.value} = currentTs - latest;
         } else {
-          long early = colVal.getLong(0);
-          long latest = colVal.getLong(1);
-          long currentTs = (long) ${tsEval.value};
-          if ((boolean) ${isRecentEval.value}) {
-            ${ev.value} = currentTs - latest;
-          } else {
-            ${ev.value} = currentTs - early;
-          }
+          ${ev.value} = currentTs - early;
         }
       }
     """)

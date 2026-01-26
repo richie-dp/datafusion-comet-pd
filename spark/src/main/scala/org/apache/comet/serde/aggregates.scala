@@ -28,7 +28,7 @@ import org.apache.spark.sql.types.{ByteType, DecimalType, IntegerType, LongType,
 
 import org.apache.comet.CometConf
 import org.apache.comet.CometSparkSessionExtensions.withInfo
-import org.apache.comet.expressions.{FinalEtd, PartialEtd, ReduceEtd}
+import org.apache.comet.expressions.{FinalAvg, FinalEtd, PartialEtd, ReduceAvg, ReduceEtd}
 import org.apache.comet.serde.QueryPlanSerde.{exprToProto, serializeDataType}
 
 object CometMin extends CometAggregateExpressionSerde {
@@ -716,6 +716,67 @@ object CometPartialEtd extends CometAggregateExpressionSerde {
       val builder = ExprOuterClass.PartialEtd.newBuilder()
       builder.setChild(childExpr.get)
       Some(ExprOuterClass.AggExpr.newBuilder().setPartialEtd(builder).build())
+    } else {
+      None
+    }
+  }
+}
+
+object CometReduceAvg extends CometAggregateExpressionSerde {
+  override def convert(
+      aggExpr: AggregateExpression,
+      expr: Expression,
+      inputs: Seq[Attribute],
+      binding: Boolean,
+      conf: SQLConf): Option[ExprOuterClass.AggExpr] = {
+    val reduceAvg = expr.asInstanceOf[ReduceAvg]
+    val childExpr = exprToProto(reduceAvg.child, inputs, binding)
+    if (childExpr.isDefined) {
+      val builder = ExprOuterClass.ReduceAvg.newBuilder()
+      builder.setChild(childExpr.get)
+      Some(ExprOuterClass.AggExpr.newBuilder().setReduceAvg(builder).build())
+    } else {
+      None
+    }
+  }
+}
+
+object CometFinalAvg extends CometAggregateExpressionSerde {
+  override def convert(
+      aggExpr: AggregateExpression,
+      expr: Expression,
+      inputs: Seq[Attribute],
+      binding: Boolean,
+      conf: SQLConf): Option[ExprOuterClass.AggExpr] = {
+    val finalAvg = expr.asInstanceOf[FinalAvg]
+    val childExpr = exprToProto(finalAvg.col, inputs, binding)
+    if (childExpr.isDefined) {
+      val builder = ExprOuterClass.FinalAvg.newBuilder()
+      builder.setCol(childExpr.get)
+      Some(ExprOuterClass.AggExpr.newBuilder().setFinalAvg(builder).build())
+    } else {
+      None
+    }
+  }
+}
+
+object CometFinalEtd extends CometAggregateExpressionSerde {
+  override def convert(
+      aggExpr: AggregateExpression,
+      expr: Expression,
+      inputs: Seq[Attribute],
+      binding: Boolean,
+      conf: SQLConf): Option[ExprOuterClass.AggExpr] = {
+    val finalEtd = expr.asInstanceOf[FinalEtd]
+    val colExpr = exprToProto(finalEtd.col, inputs, binding)
+    val tsExpr = exprToProto(finalEtd.ts, inputs, binding)
+    val isRecentExpr = exprToProto(finalEtd.isRecent, inputs, binding)
+    if (colExpr.isDefined && tsExpr.isDefined && isRecentExpr.isDefined) {
+      val builder = ExprOuterClass.FinalEtd.newBuilder()
+      builder.setCol(colExpr.get)
+      builder.setTs(tsExpr.get)
+      builder.setIsRecent(isRecentExpr.get)
+      Some(ExprOuterClass.AggExpr.newBuilder().setFinalEtd(builder).build())
     } else {
       None
     }

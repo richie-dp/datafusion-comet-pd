@@ -424,6 +424,9 @@ object QueryPlanSerde extends Logging with CometExprShim {
       case _: BloomFilterAggregate => CometBloomFilterAggregate
       case _: ReduceEtd => CometReduceEtd
       case _: PartialEtd => CometPartialEtd
+      case _: ReduceAvg => CometReduceAvg
+      case _: FinalAvg => CometFinalAvg
+      case _: FinalEtd => CometFinalEtd
       case fn =>
         val msg = s"unsupported Spark aggregate function: ${fn.prettyName}"
         emitWarning(msg)
@@ -582,19 +585,6 @@ object QueryPlanSerde extends Logging with CometExprShim {
     }
 
     expr match {
-      case e: FinalEtd =>
-        val col = exprToProtoInternal(e.col, inputs, binding)
-        val ts = exprToProtoInternal(e.ts, inputs, binding)
-        val isRecent = exprToProtoInternal(e.isRecent, inputs, binding)
-        if (col.isDefined && ts.isDefined && isRecent.isDefined) {
-          val builder = ExprOuterClass.FinalEtd.newBuilder()
-          builder.setCol(col.get)
-          builder.setTs(ts.get)
-          builder.setIsRecent(isRecent.get)
-          Some(ExprOuterClass.Expr.newBuilder().setFinalEtd(builder).build())
-        } else {
-          None
-        }
 
       case a @ Alias(_, _) =>
         val r = exprToProtoInternal(a.child, inputs, binding)

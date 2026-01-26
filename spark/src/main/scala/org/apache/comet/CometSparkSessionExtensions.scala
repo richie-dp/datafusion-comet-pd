@@ -45,7 +45,7 @@ import org.apache.spark.sql.execution.datasources.v2.parquet.ParquetScan
 import org.apache.spark.sql.internal.SQLConf
 
 import org.apache.comet.CometConf._
-import org.apache.comet.expressions.{FinalEtd, PartialEtd, ReduceEtd}
+import org.apache.comet.expressions.{FinalAvg, FinalEtd, PartialEtd, ReduceAvg, ReduceEtd}
 import org.apache.comet.rules.{CometExecRule, CometScanRule, EliminateRedundantTransitions}
 import org.apache.comet.shims.ShimCometSparkSessionExtensions
 
@@ -79,7 +79,17 @@ class CometSparkSessionExtensions
       (
         new FunctionIdentifier("final_etd"),
         new ExpressionInfo(classOf[FinalEtd].getName, "final_etd"),
-        (children: Seq[Expression]) => FinalEtd(children(0), children(1), children(2))))
+        (children: Seq[Expression]) => FinalEtd(children(0), children(1), children(2), 0, 0)))
+    extensions.injectFunction(
+      (
+        new FunctionIdentifier("reduce_avg"),
+        new ExpressionInfo(classOf[ReduceAvg].getName, "reduce_avg"),
+        (children: Seq[Expression]) => ReduceAvg(children.head)))
+    extensions.injectFunction(
+      (
+        new FunctionIdentifier("final_avg"),
+        new ExpressionInfo(classOf[FinalAvg].getName, "final_avg"),
+        (children: Seq[Expression]) => FinalAvg(children.head, 0, 0)))
   }
 
   case class CometScanColumnar(session: SparkSession) extends ColumnarRule {

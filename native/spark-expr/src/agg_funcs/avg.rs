@@ -16,7 +16,7 @@
 // under the License.
 
 use arrow::array::{
-    builder::PrimitiveBuilder,
+    builder::{Float64Builder, PrimitiveBuilder},
     cast::AsArray,
     types::{Float64Type, Int64Type},
     Array, ArrayRef, ArrowNumericType, Int64Array, PrimitiveArray,
@@ -24,17 +24,21 @@ use arrow::array::{
 use arrow::compute::sum;
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::common::{not_impl_err, Result, ScalarValue};
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::{
-    type_coercion::aggregates::avg_return_type, Accumulator, AggregateUDFImpl, EmitTo,
-    GroupsAccumulator, ReversedUDAF, Signature,
+    function::{AccumulatorArgs, StateFieldsArgs},
+    type_coercion::aggregates::avg_return_type, Accumulator, AggregateUDFImpl, ColumnarValue,
+    EmitTo, GroupsAccumulator, ReversedUDAF, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion::physical_expr::expressions::format_state_name;
 use std::{any::Any, sync::Arc};
 
 use arrow::array::ArrowNativeTypeOp;
-use datafusion::logical_expr::function::{AccumulatorArgs, StateFieldsArgs};
-use datafusion::logical_expr::Volatility::Immutable;
 use DataType::*;
+
+// Bridge to reuse fusion-sql UDAF implementation for reduce_avg and final_avg
+use fusion_sql::udf::{avg::Average, AccumulatorMode};
 
 /// AVG aggregate expression
 #[derive(Debug, Clone)]
@@ -53,7 +57,7 @@ impl Avg {
 
         Self {
             name: name.into(),
-            signature: Signature::user_defined(Immutable),
+            signature: Signature::user_defined(Volatility::Immutable),
             input_data_type: data_type,
             result_data_type,
         }
@@ -337,5 +341,195 @@ where
     fn size(&self) -> usize {
         self.counts.capacity() * std::mem::size_of::<i64>()
             + self.sums.capacity() * std::mem::size_of::<T>()
+    }
+}
+
+/// Bridge to reuse fusion-sql UDAF implementation
+#[derive(Debug)]
+pub struct AvgBridge {
+    inner: Average,
+}
+
+impl AvgBridge {
+    pub fn new(mode: AccumulatorMode) -> Self {
+        Self {
+            inner: Average::new(mode),
+        }
+    }
+}
+
+impl AggregateUDFImpl for AvgBridge {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    fn signature(&self) -> &Signature {
+        self.inner.signature()
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        self.inner.return_type(arg_types).map_err(to_df_err)
+    }
+
+    fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<arrow::datatypes::FieldRef>> {
+        self.inner.state_fields(args).map_err(to_df_err)
+    }
+
+    fn accumulator(&self, acc_args: AccumulatorArgs) -> Result<Box<dyn Accumulator>> {
+        self.inner.accumulator(acc_args).map_err(to_df_err)
+    }
+}
+
+fn to_df_err(e: impl std::fmt::Display) -> DataFusionError {
+    DataFusionError::External(format!("{}", e).into())
+}
+
+/// REDUCE_AVG wrapper
+#[derive(Debug)]
+pub struct ReduceAvg(AvgBridge);
+
+impl ReduceAvg {
+    pub fn new(_name: impl Into<String>) -> Self {
+        Self(AvgBridge::new(AccumulatorMode::Reduce))
+    }
+}
+
+impl AggregateUDFImpl for ReduceAvg {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn name(&self) -> &str {
+        self.0.name()
+    }
+    fn signature(&self) -> &Signature {
+        self.0.signature()
+    }
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        self.0.return_type(arg_types)
+    }
+    fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<arrow::datatypes::FieldRef>> {
+        self.0.state_fields(args)
+    }
+    fn accumulator(&self, acc_args: AccumulatorArgs) -> Result<Box<dyn Accumulator>> {
+        self.0.accumulator(acc_args)
+    }
+}
+
+/// FINAL_AVG wrapper that reuses fusion-sql implementation
+/// This wrapper handles the conversion from List to FixedSizeList
+#[derive(Debug)]
+pub struct FinalAvg(AvgBridge);
+
+impl FinalAvg {
+    pub fn new() -> Self {
+        Self(AvgBridge::new(AccumulatorMode::Final))
+    }
+}
+
+impl Default for FinalAvg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AggregateUDFImpl for FinalAvg {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        self.0.name()
+    }
+
+    fn signature(&self) -> &Signature {
+        self.0.signature()
+    }
+
+    fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
+        self.0.return_type(arg_types)
+    }
+
+    fn state_fields(&self, args: StateFieldsArgs) -> Result<Vec<arrow::datatypes::FieldRef>> {
+        self.0.state_fields(args)
+    }
+
+    fn accumulator(&self, acc_args: AccumulatorArgs) -> Result<Box<dyn Accumulator>> {
+        // Get the inner accumulator from fusion_sql
+        let inner = self.0.accumulator(acc_args)?;
+        // Wrap it to handle List -> FixedSizeList conversion
+        Ok(Box::new(FinalAvgAccumulatorWrapper { inner }))
+    }
+}
+
+/// Wrapper accumulator that converts List to FixedSizeList before calling fusion_sql
+#[derive(Debug)]
+struct FinalAvgAccumulatorWrapper {
+    inner: Box<dyn Accumulator>,
+}
+
+impl Accumulator for FinalAvgAccumulatorWrapper {
+    fn state(&self) -> Result<Vec<ScalarValue>> {
+        self.inner.state()
+    }
+
+    fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
+        // Convert List to FixedSizeList if needed
+        let converted_values: Vec<ArrayRef> = values
+            .iter()
+            .map(|arr| {
+                match arr.data_type() {
+                    DataType::List(_) => {
+                        // Convert List to FixedSizeList
+                        let list = arr.as_list::<i32>();
+                        let mut builder = arrow::array::FixedSizeListBuilder::new(
+                            arrow::array::Float64Builder::new(),
+                            2,
+                        );
+                        
+                        for i in 0..list.len() {
+                            if list.is_null(i) {
+                                // For null elements, append 2 null values
+                                builder.values().append_null();
+                                builder.values().append_null();
+                                builder.append(false);
+                            } else {
+                                let value = list.value(i);
+                                let value_arr = value.as_primitive::<Float64Type>();
+                                if value_arr.len() >= 2 {
+                                    builder.values().append_value(value_arr.value(0));
+                                    builder.values().append_value(value_arr.value(1));
+                                    builder.append(true);
+                                } else {
+                                    // For elements with insufficient length, append nulls
+                                    builder.values().append_null();
+                                    builder.values().append_null();
+                                    builder.append(false);
+                                }
+                            }
+                        }
+                        Arc::new(builder.finish()) as ArrayRef
+                    }
+                    _ => Arc::clone(arr),
+                }
+            })
+            .collect();
+        
+        self.inner.update_batch(&converted_values)
+    }
+
+    fn merge_batch(&mut self, states: &[ArrayRef]) -> Result<()> {
+        self.inner.merge_batch(states)
+    }
+
+    fn evaluate(&self) -> Result<ScalarValue> {
+        self.inner.evaluate()
+    }
+
+    fn size(&self) -> usize {
+        self.inner.size()
     }
 }
