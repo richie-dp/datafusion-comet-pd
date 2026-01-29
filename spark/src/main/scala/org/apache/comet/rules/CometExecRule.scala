@@ -41,6 +41,7 @@ import org.apache.comet.CometConf.COMET_ANSI_MODE_ENABLED
 import org.apache.comet.CometSparkSessionExtensions._
 import org.apache.comet.serde.OperatorOuterClass.Operator
 import org.apache.comet.serde.QueryPlanSerde
+import org.apache.comet.shims.CometShim
 
 /**
  * Spark physical optimizer rule for replacing Spark operators with Comet operators.
@@ -198,7 +199,7 @@ case class CometExecRule(session: SparkSession) extends Rule[SparkPlan] {
       case op: LocalLimitExec =>
         newPlanWithProto(op, CometLocalLimitExec(_, op, op.limit, op.child, SerializedPlan(None)))
 
-      case op: GlobalLimitExec if op.offset == 0 =>
+      case op: GlobalLimitExec if CometShim.getOffset(op) == 0 =>
         newPlanWithProto(
           op,
           CometGlobalLimitExec(_, op, op.limit, op.child, SerializedPlan(None)))
@@ -211,7 +212,7 @@ case class CometExecRule(session: SparkSession) extends Rule[SparkPlan] {
         if (!isCometShuffleEnabled(conf)) {
           fallbackReasons += "Comet shuffle is not enabled"
         }
-        if (op.offset != 0) {
+        if (CometShim.getOffset(op) != 0) {
           fallbackReasons += "CollectLimit with non-zero offset is not supported"
         }
         if (fallbackReasons.nonEmpty) {
@@ -225,7 +226,7 @@ case class CometExecRule(session: SparkSession) extends Rule[SparkPlan] {
               .operator2Proto(op)
               .map { nativeOp =>
                 val cometOp =
-                  CometCollectLimitExec(op, op.limit, op.offset, op.child)
+                  CometCollectLimitExec(op, op.limit, CometShim.getOffset(op), op.child)
                 CometSinkPlaceHolder(nativeOp, op, cometOp)
               }
               .getOrElse(op)

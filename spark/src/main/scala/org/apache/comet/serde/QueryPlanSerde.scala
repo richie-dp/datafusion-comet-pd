@@ -33,9 +33,9 @@ import org.apache.spark.sql.catalyst.optimizer.{BuildLeft, BuildRight, Normalize
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.catalyst.util.CharVarcharCodegenUtils
-import org.apache.spark.sql.catalyst.util.ResolveDefaultColumns.getExistenceDefaultValues
 import org.apache.spark.sql.comet._
 import org.apache.spark.sql.comet.execution.shuffle.CometShuffleExchangeExec
+import org.apache.spark.sql.comet.shims.ShimResolveDefaultColumns.getExistenceDefaultValues
 import org.apache.spark.sql.execution
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.adaptive.{BroadcastQueryStageExec, ShuffleQueryStageExec}
@@ -56,7 +56,7 @@ import org.apache.comet.objectstore.NativeConfig
 import org.apache.comet.serde.ExprOuterClass.{AggExpr, DataType => ProtoDataType, Expr, ScalarFunc}
 import org.apache.comet.serde.ExprOuterClass.DataType._
 import org.apache.comet.serde.OperatorOuterClass.{AggregateMode => CometAggregateMode, BuildSide, JoinType, Operator}
-import org.apache.comet.shims.CometExprShim
+import org.apache.comet.shims.{CometExprShim, CometShim}
 
 /**
  * An utility object for query plan and expression serialization.
@@ -104,8 +104,10 @@ object QueryPlanSerde extends Logging with CometExprShim {
 
   def supportedDataType(dt: DataType, allowComplex: Boolean = false): Boolean = dt match {
     case _: ByteType | _: ShortType | _: IntegerType | _: LongType | _: FloatType |
-        _: DoubleType | _: StringType | _: BinaryType | _: TimestampType | _: TimestampNTZType |
-        _: DecimalType | _: DateType | _: BooleanType | _: NullType =>
+        _: DoubleType | _: StringType | _: BinaryType | _: TimestampType | _: DecimalType |
+        _: DateType | _: BooleanType | _: NullType =>
+      true
+    case t if CometShim.isTimestampNTZType(t) =>
       true
     case s: StructType if allowComplex =>
       s.fields.map(_.dataType).forall(supportedDataType(_, allowComplex))
@@ -136,7 +138,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
       case _: BinaryType => 8
       case _: TimestampType => 9
       case _: DecimalType => 10
-      case _: TimestampNTZType => 11
+      case t if CometShim.isTimestampNTZType(t) => 11
       case _: DateType => 12
       case _: NullType => 13
       case _: ArrayType => 14
@@ -620,7 +622,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
           inputs,
           binding,
           add.dataType,
-          add.evalMode == EvalMode.ANSI,
+          CometShim.isAnsiMode(add),
           (builder, mathExpr) => builder.setAdd(mathExpr))
 
       case add @ Add(left, _, _) if !supportedDataType(left.dataType) =>
@@ -635,7 +637,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
           inputs,
           binding,
           sub.dataType,
-          sub.evalMode == EvalMode.ANSI,
+          CometShim.isAnsiMode(sub),
           (builder, mathExpr) => builder.setSubtract(mathExpr))
 
       case sub @ Subtract(left, _, _) if !supportedDataType(left.dataType) =>
@@ -650,7 +652,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
           inputs,
           binding,
           mul.dataType,
-          mul.evalMode == EvalMode.ANSI,
+          CometShim.isAnsiMode(mul),
           (builder, mathExpr) => builder.setMultiply(mathExpr))
 
       case mul @ Multiply(left, _, _) =>
@@ -672,7 +674,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
           inputs,
           binding,
           div.dataType,
-          div.evalMode == EvalMode.ANSI,
+          CometShim.isAnsiMode(div),
           (builder, mathExpr) => builder.setDivide(mathExpr))
 
       case div @ Divide(left, _, _) =>
@@ -699,7 +701,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
           inputs,
           binding,
           dataType,
-          div.evalMode == EvalMode.ANSI,
+          CometShim.isAnsiMode(div),
           (builder, mathExpr) => builder.setIntegralDivide(mathExpr))
 
         if (divideExpr.isDefined) {
@@ -707,7 +709,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
             // check overflow for decimal type
             val builder = ExprOuterClass.CheckOverflow.newBuilder()
             builder.setChild(divideExpr.get)
-            builder.setFailOnError(div.evalMode == EvalMode.ANSI)
+            builder.setFailOnError(CometShim.isAnsiMode(div))
             builder.setDatatype(serializeDataType(dataType).get)
             Some(
               ExprOuterClass.Expr
@@ -740,7 +742,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
           inputs,
           binding,
           rem.dataType,
-          rem.evalMode == EvalMode.ANSI,
+          CometShim.isAnsiMode(rem),
           (builder, mathExpr) => builder.setRemainder(mathExpr))
 
       case rem @ Remainder(left, _, _) =>
@@ -840,7 +842,8 @@ object QueryPlanSerde extends Logging with CometExprShim {
             case _: StringType =>
               exprBuilder.setStringVal(value.asInstanceOf[UTF8String].toString)
             case _: TimestampType => exprBuilder.setLongVal(value.asInstanceOf[Long])
-            case _: TimestampNTZType => exprBuilder.setLongVal(value.asInstanceOf[Long])
+            case t if CometShim.isTimestampNTZType(t) =>
+              exprBuilder.setLongVal(value.asInstanceOf[Long])
             case _: DecimalType =>
               // Pass decimal literal as bytes.
               val unscaled = value.asInstanceOf[Decimal].toBigDecimal.underlying.unscaledValue
@@ -2162,7 +2165,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
     case _: ByteType | _: ShortType | _: IntegerType | _: LongType | _: FloatType |
         _: DoubleType | _: StringType | _: DateType | _: DecimalType | _: BooleanType =>
       true
-    case TimestampNTZType => true
+    case t if CometShim.isTimestampNTZType(t) => true
     case _ => false
   }
 
@@ -2222,7 +2225,7 @@ object QueryPlanSerde extends Logging with CometExprShim {
             val (defaultValues, indexes) = possibleDefaultValues.zipWithIndex
               .filter { case (expr, _) => expr != null }
               .map { case (expr, index) =>
-                // ResolveDefaultColumnsUtil.getExistenceDefaultValues has evaluated these
+                // ShimResolveDefaultColumns.getExistenceDefaultValues has evaluated these
                 // expressions and they should now just be literals.
                 (Literal(expr), index.toLong.asInstanceOf[java.lang.Long])
               }
@@ -2290,7 +2293,9 @@ object QueryPlanSerde extends Logging with CometExprShim {
             .newHadoopConfWithOptions(scan.relation.options)
           firstPartition.foreach { partitionFile =>
             val objectStoreOptions =
-              NativeConfig.extractObjectStoreOptions(hadoopConf, partitionFile.pathUri)
+              NativeConfig.extractObjectStoreOptions(
+                hadoopConf,
+                org.apache.comet.shims.ShimBatchReader.getFilePath(partitionFile))
             objectStoreOptions.foreach { case (key, value) =>
               nativeScanBuilder.putObjectStoreOptions(key, value)
             }
@@ -2851,7 +2856,9 @@ object QueryPlanSerde extends Logging with CometExprShim {
     def supportedHashPartitionKeyDataType(dt: DataType): Boolean = dt match {
       case _: BooleanType | _: ByteType | _: ShortType | _: IntegerType | _: LongType |
           _: FloatType | _: DoubleType | _: StringType | _: BinaryType | _: TimestampType |
-          _: TimestampNTZType | _: DecimalType | _: DateType =>
+          _: DecimalType | _: DateType =>
+        true
+      case t if CometShim.isTimestampNTZType(t) =>
         true
       case _ =>
         false
@@ -2903,7 +2910,9 @@ object QueryPlanSerde extends Logging with CometExprShim {
   def supportedShuffleDataType(dt: DataType): Boolean = dt match {
     case _: BooleanType | _: ByteType | _: ShortType | _: IntegerType | _: LongType |
         _: FloatType | _: DoubleType | _: StringType | _: BinaryType | _: TimestampType |
-        _: TimestampNTZType | _: DecimalType | _: DateType =>
+        _: DecimalType | _: DateType =>
+      true
+    case t if CometShim.isTimestampNTZType(t) =>
       true
     case StructType(fields) =>
       fields.forall(f => supportedShuffleDataType(f.dataType)) &&
@@ -2956,8 +2965,9 @@ object QueryPlanSerde extends Logging with CometExprShim {
       val canSort = sortOrder.head.dataType match {
         case _: BooleanType => true
         case _: ByteType | _: ShortType | _: IntegerType | _: LongType | _: FloatType |
-            _: DoubleType | _: TimestampType | _: TimestampNTZType | _: DecimalType |
-            _: DateType =>
+            _: DoubleType | _: TimestampType | _: DecimalType | _: DateType =>
+          true
+        case t if CometShim.isTimestampNTZType(t) =>
           true
         case _: BinaryType | _: StringType => true
         case ArrayType(elementType, _) => canRank(elementType)

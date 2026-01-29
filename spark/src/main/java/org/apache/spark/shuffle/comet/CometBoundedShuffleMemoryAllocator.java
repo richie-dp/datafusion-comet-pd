@@ -21,11 +21,11 @@ package org.apache.spark.shuffle.comet;
 
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.Map;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.memory.MemoryMode;
-import org.apache.spark.memory.SparkOutOfMemoryError;
 import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.unsafe.array.LongArray;
@@ -33,6 +33,7 @@ import org.apache.spark.unsafe.memory.MemoryBlock;
 import org.apache.spark.unsafe.memory.UnsafeMemoryAllocator;
 
 import org.apache.comet.CometSparkSessionExtensions$;
+import org.apache.comet.shims.CometShim;
 
 /**
  * A simple memory allocator used by `CometShuffleExternalSorter` to allocate memory blocks which
@@ -79,11 +80,12 @@ public final class CometBoundedShuffleMemoryAllocator extends CometShuffleMemory
 
   private synchronized long _acquireMemory(long size) {
     if (allocatedMemory >= totalMemory) {
-      throw new SparkOutOfMemoryError(
-          "UNABLE_TO_ACQUIRE_MEMORY",
-          java.util.Map.of(
-              "requestedBytes", String.valueOf(size),
-              "receivedBytes", String.valueOf(totalMemory - allocatedMemory)));
+      throw (org.apache.spark.memory.SparkOutOfMemoryError)
+          CometShim.createSparkOutOfMemoryError(
+              "UNABLE_TO_ACQUIRE_MEMORY",
+              Map.of(
+                  "requestedBytes", String.valueOf(size),
+                  "receivedBytes", String.valueOf(totalMemory - allocatedMemory)));
     }
     long allocationSize = Math.min(size, totalMemory - allocatedMemory);
     allocatedMemory += allocationSize;
@@ -122,11 +124,12 @@ public final class CometBoundedShuffleMemoryAllocator extends CometShuffleMemory
     if (got < required) {
       allocatedMemory -= got;
 
-      throw new SparkOutOfMemoryError(
-          "UNABLE_TO_ACQUIRE_MEMORY",
-          java.util.Map.of(
-              "requestedBytes", String.valueOf(required),
-              "receivedBytes", String.valueOf(totalMemory - allocatedMemory)));
+      throw (org.apache.spark.memory.SparkOutOfMemoryError)
+          CometShim.createSparkOutOfMemoryError(
+              "UNABLE_TO_ACQUIRE_MEMORY",
+              Map.of(
+                  "requestedBytes", String.valueOf(required),
+                  "receivedBytes", String.valueOf(totalMemory - allocatedMemory)));
     }
 
     int pageNumber = allocatedPages.nextClearBit(0);

@@ -36,15 +36,17 @@ import org.apache.spark.sql.vectorized._
 import com.google.common.base.Objects
 
 import org.apache.comet.{DataTypeSupport, MetricsSupport}
+import org.apache.comet.shims.CometShim
 
 case class CometBatchScanExec(wrapped: BatchScanExec, runtimeFilters: Seq[Expression])
     extends DataSourceV2ScanExecBase
     with CometPlan {
-  def ordering: Option[Seq[SortOrder]] = wrapped.ordering
+  def ordering: Option[Seq[SortOrder]] = CometShim.getOrdering(wrapped)
 
   wrapped.logicalLink.foreach(setLogicalLink)
 
-  def keyGroupedPartitioning: Option[Seq[Expression]] = wrapped.keyGroupedPartitioning
+  def keyGroupedPartitioning: Option[Seq[Expression]] =
+    CometShim.getKeyGroupedPartitioning(wrapped)
 
   def inputPartitions: Seq[InputPartition] = wrapped.inputPartitions
 

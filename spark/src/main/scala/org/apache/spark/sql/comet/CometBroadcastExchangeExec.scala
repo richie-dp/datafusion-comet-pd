@@ -46,7 +46,7 @@ import org.apache.spark.util.io.ChunkedByteBuffer
 import com.google.common.base.Objects
 
 import org.apache.comet.CometRuntimeException
-import org.apache.comet.shims.ShimCometBroadcastExchangeExec
+import org.apache.comet.shims.{CometShim, ShimCometBroadcastExchangeExec}
 
 /**
  * A [[CometBroadcastExchangeExec]] collects, transforms and finally broadcasts the result of a
@@ -175,8 +175,8 @@ case class CometBroadcastExchangeExec(
         longMetric("buildTime") += NANOSECONDS.toMillis(beforeBroadcast - beforeBuild)
 
         // (3.4 only) SPARK-39983 - Broadcast the relation without caching the unserialized object.
-        val broadcasted = sparkContext
-          .broadcastInternal(batches, true)
+        val broadcasted = CometShim
+          .broadcastInternal(sparkContext, batches, true)
           .asInstanceOf[broadcast.Broadcast[Any]]
         longMetric("broadcastTime") += NANOSECONDS.toMillis(System.nanoTime() - beforeBroadcast)
         val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)

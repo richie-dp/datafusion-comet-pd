@@ -35,4 +35,6 @@ object ShimBatchReader {
       0,
       0,
       Map.empty)
+
+  def getFilePath(file: PartitionedFile): java.net.URI = file.filePath.toUri
 }

@@ -23,7 +23,7 @@ import java.math.BigInteger;
 
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.util.ResolveDefaultColumns;
+import org.apache.spark.sql.comet.shims.ShimResolveDefaultColumns;
 import org.apache.spark.sql.types.*;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -41,8 +41,8 @@ public class ConstantColumnReader extends MetadataColumnReader {
   public ConstantColumnReader(StructField field, int batchSize, boolean useDecimal128) {
     this(field.dataType(), TypeUtil.convertToParquet(field), batchSize, useDecimal128);
     this.value =
-        ResolveDefaultColumns.getExistenceDefaultValues(new StructType(new StructField[] {field}))[
-            0];
+        ShimResolveDefaultColumns.getExistenceDefaultValues(
+            new StructType(new StructField[] {field}))[0];
     init(value);
   }
 

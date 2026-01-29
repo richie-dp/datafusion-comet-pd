@@ -22,8 +22,6 @@ package org.apache.comet.parquet;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.channels.Channels;
 import java.util.*;
@@ -31,8 +29,6 @@ import java.util.stream.Collectors;
 
 import scala.Option;
 import scala.collection.JavaConverters;
-import scala.collection.Seq;
-import scala.collection.mutable.Buffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +57,7 @@ import org.apache.spark.TaskContext$;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.comet.parquet.CometParquetReadSupport;
+import org.apache.spark.sql.comet.shims.ShimTaskMetrics;
 import org.apache.spark.sql.comet.util.Utils$;
 import org.apache.spark.sql.errors.QueryExecutionErrors;
 import org.apache.spark.sql.execution.datasources.PartitionedFile;
@@ -76,6 +73,7 @@ import org.apache.spark.util.AccumulatorV2;
 import org.apache.comet.CometConf;
 import org.apache.comet.CometSchemaImporter;
 import org.apache.comet.objectstore.NativeConfig;
+import org.apache.comet.shims.CometSQLConfShim;
 import org.apache.comet.shims.ShimBatchReader;
 import org.apache.comet.shims.ShimFileFormat;
 import org.apache.comet.vector.CometVector;
@@ -254,8 +252,9 @@ public class NativeBatchReader extends RecordReader<Void, ColumnarBatch> impleme
     }
     ParquetReadOptions readOptions = builder.build();
 
+    URI pathUri = ShimBatchReader.getFilePath(file);
     Map<String, String> objectStoreOptions =
-        JavaConverters.mapAsJavaMap(NativeConfig.extractObjectStoreOptions(conf, file.pathUri()));
+        JavaConverters.mapAsJavaMap(NativeConfig.extractObjectStoreOptions(conf, pathUri));
 
     // TODO: enable off-heap buffer when they are ready
     ReadOptions cometReadOptions = ReadOptions.builder(conf).build();
@@ -437,7 +436,7 @@ public class NativeBatchReader extends RecordReader<Void, ColumnarBatch> impleme
     config.setBoolean(SQLConf.PARQUET_BINARY_AS_STRING().key(), false);
     config.setBoolean(SQLConf.PARQUET_INT96_AS_TIMESTAMP().key(), false);
     config.setBoolean(SQLConf.CASE_SENSITIVE().key(), false);
-    config.setBoolean(SQLConf.PARQUET_INFER_TIMESTAMP_NTZ_ENABLED().key(), false);
+    CometSQLConfShim.setParquetInferTimestampNTZEnabled(config, SQLConf.get());
     config.setBoolean(SQLConf.LEGACY_PARQUET_NANOS_AS_LONG().key(), false);
     ParquetToSparkSchemaConverter converter = new ParquetToSparkSchemaConverter(config);
     return converter.convertParquetColumn(schema, Option.apply(sparkSchema));
@@ -480,8 +479,9 @@ public class NativeBatchReader extends RecordReader<Void, ColumnarBatch> impleme
       // Need to fail if there is ambiguity, i.e. more than one field is matched
       String parquetTypesString =
           matched.stream().map(Type::getName).collect(Collectors.joining("[", ", ", "]"));
-      throw QueryExecutionErrors.foundDuplicateFieldInFieldIdLookupModeError(
-          fieldId, parquetTypesString);
+      throw new RuntimeException(
+          QueryExecutionErrors.foundDuplicateFieldInFieldIdLookupModeError(
+              fieldId, parquetTypesString));
     } else {
       return matched.get(0);
     }
@@ -844,24 +844,8 @@ public class NativeBatchReader extends RecordReader<Void, ColumnarBatch> impleme
   // Signature of externalAccums changed from returning a Buffer to returning a Seq. If comet is
   // expecting a Buffer but the Spark version returns a Seq or vice versa, we get a
   // method not found exception.
-  @SuppressWarnings("unchecked")
   private Option<AccumulatorV2<?, ?>> getTaskAccumulator(TaskMetrics taskMetrics) {
-    Method externalAccumsMethod;
-    try {
-      externalAccumsMethod = TaskMetrics.class.getDeclaredMethod("externalAccums");
-      externalAccumsMethod.setAccessible(true);
-      String returnType = externalAccumsMethod.getReturnType().getName();
-      if (returnType.equals("scala.collection.mutable.Buffer")) {
-        return ((Buffer<AccumulatorV2<?, ?>>) externalAccumsMethod.invoke(taskMetrics))
-            .lastOption();
-      } else if (returnType.equals("scala.collection.Seq")) {
-        return ((Seq<AccumulatorV2<?, ?>>) externalAccumsMethod.invoke(taskMetrics)).lastOption();
-      } else {
-        return Option.apply(null); // None
-      }
-    } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-      return Option.apply(null); // None
-    }
+    return ShimTaskMetrics.getTaskAccumulator(taskMetrics);
   }
 
   private byte[] serializeArrowSchema(Schema schema) throws IOException {

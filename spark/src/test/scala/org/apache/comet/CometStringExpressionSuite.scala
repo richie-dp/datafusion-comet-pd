@@ -22,6 +22,8 @@ package org.apache.comet
 import org.apache.spark.sql.CometTestBase
 import org.apache.spark.sql.internal.SQLConf
 
+import org.apache.comet.shims.CometShim
+
 class CometStringExpressionSuite extends CometTestBase {
 
   test("Various String scalar functions") {
@@ -169,8 +171,22 @@ class CometStringExpressionSuite extends CometTestBase {
   // based on Spark SQL ParquetFilterSuite test "filter pushdown - StringPredicate"
   test("string predicate filter") {
     Seq(false, true).foreach { pushdown =>
-      withSQLConf(
-        SQLConf.PARQUET_FILTER_PUSHDOWN_STRING_PREDICATE_ENABLED.key -> pushdown.toString) {
+      // PARQUET_FILTER_PUSHDOWN_STRING_PREDICATE_ENABLED is only available in Spark 3.4+
+      // In Spark 3.3, this config doesn't exist, so we skip setting it
+      val confs =
+        try {
+          val confClass = classOf[SQLConf]
+          val method = confClass.getMethod("PARQUET_FILTER_PUSHDOWN_STRING_PREDICATE_ENABLED")
+          val confObj = method.invoke(null)
+          // Use reflection to get the key method
+          val keyMethod = confObj.getClass.getMethod("key")
+          val key = keyMethod.invoke(confObj).asInstanceOf[String]
+          Seq(key -> pushdown.toString)
+        } catch {
+          case _: NoSuchMethodException | _: ClassNotFoundException | _: NoClassDefFoundError =>
+            Seq.empty[(String, String)]
+        }
+      withSQLConf(confs: _*) {
         val table = "names"
         withTable(table) {
           sql(s"create table $table(name varchar(20)) using parquet")

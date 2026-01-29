@@ -32,6 +32,7 @@ import org.apache.spark.sql.vectorized._
 
 import org.apache.comet.CometConf.{COMET_BATCH_SIZE, COMET_DEBUG_ENABLED, COMET_EXEC_MEMORY_POOL_TYPE, COMET_EXPLAIN_NATIVE_ENABLED, COMET_METRICS_UPDATE_INTERVAL}
 import org.apache.comet.Tracing.withTrace
+import org.apache.comet.shims.CometShim
 import org.apache.comet.vector.NativeUtil
 
 /**
@@ -165,15 +166,14 @@ class CometExecIterator(
         e.getMessage match {
           case fileNotFoundPattern(filePath) =>
             // See org.apache.spark.sql.errors.QueryExecutionErrors.readCurrentFileNotFoundError
-            throw new SparkException(
+            throw CometShim.createSparkException(
               errorClass = "_LEGACY_ERROR_TEMP_2055",
               messageParameters = Map("message" -> e.getMessage),
-              cause = new FileNotFoundException(filePath)
-            ) // Can't use SparkFileNotFoundException because it's private.
+              cause = new FileNotFoundException(filePath))
           case parquetError() =>
             // See org.apache.spark.sql.errors.QueryExecutionErrors.failedToReadDataError
             // See org.apache.parquet.hadoop.ParquetFileReader for error message.
-            throw new SparkException(
+            throw CometShim.createSparkException(
               errorClass = "_LEGACY_ERROR_TEMP_2254",
               messageParameters = Map("message" -> e.getMessage),
               cause = new SparkException("File is not a Parquet file.", e))

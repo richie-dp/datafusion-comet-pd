@@ -30,6 +30,7 @@ import org.apache.comet.CometConf
 import org.apache.comet.CometSparkSessionExtensions.withInfo
 import org.apache.comet.expressions.{FinalAvg, FinalEtd, PartialEtd, ReduceAvg, ReduceEtd}
 import org.apache.comet.serde.QueryPlanSerde.{exprToProto, serializeDataType}
+import org.apache.comet.shims.CometShim
 
 object CometMin extends CometAggregateExpressionSerde {
 
@@ -140,7 +141,7 @@ object CometAverage extends CometAggregateExpressionSerde {
       return None
     }
 
-    if (avg.evalMode != EvalMode.LEGACY) {
+    if (CometShim.isAnsiMode(avg)) {
       withInfo(aggExpr, "Average is only supported in legacy mode")
       return None
     }
@@ -164,7 +165,7 @@ object CometAverage extends CometAggregateExpressionSerde {
       val builder = ExprOuterClass.Avg.newBuilder()
       builder.setChild(childExpr.get)
       builder.setDatatype(dataType.get)
-      builder.setFailOnError(avg.evalMode == EvalMode.ANSI)
+      builder.setFailOnError(CometShim.isAnsiMode(avg))
       builder.setSumDatatype(sumDataType.get)
 
       Some(
@@ -195,7 +196,7 @@ object CometSum extends CometAggregateExpressionSerde {
       return None
     }
 
-    if (sum.evalMode != EvalMode.LEGACY) {
+    if (CometShim.isAnsiMode(sum)) {
       withInfo(aggExpr, "Sum is only supported in legacy mode")
       return None
     }
@@ -207,7 +208,7 @@ object CometSum extends CometAggregateExpressionSerde {
       val builder = ExprOuterClass.Sum.newBuilder()
       builder.setChild(childExpr.get)
       builder.setDatatype(dataType.get)
-      builder.setFailOnError(sum.evalMode == EvalMode.ANSI)
+      builder.setFailOnError(CometShim.isAnsiMode(sum))
 
       Some(
         ExprOuterClass.AggExpr

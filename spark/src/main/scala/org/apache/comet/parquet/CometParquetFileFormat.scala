@@ -43,7 +43,7 @@ import org.apache.spark.util.SerializableConfiguration
 
 import org.apache.comet.CometConf
 import org.apache.comet.MetricsSupport
-import org.apache.comet.shims.ShimSQLConf
+import org.apache.comet.shims.{CometShim, ShimSQLConf}
 import org.apache.comet.vector.CometVector
 
 /**
@@ -94,7 +94,7 @@ class CometParquetFileFormat(scanImpl: String)
     val pushDownDate = sqlConf.parquetFilterPushDownDate
     val pushDownTimestamp = sqlConf.parquetFilterPushDownTimestamp
     val pushDownDecimal = sqlConf.parquetFilterPushDownDecimal
-    val pushDownStringPredicate = sqlConf.parquetFilterPushDownStringPredicate
+    val pushDownStringPredicate = CometShim.isParquetFilterPushDownStringPredicate(sqlConf)
     val pushDownInFilterThreshold = sqlConf.parquetFilterPushDownInFilterThreshold
     val optionsMap = CaseInsensitiveMap[String](options)
     val parquetOptions = new ParquetOptions(optionsMap, sqlConf)

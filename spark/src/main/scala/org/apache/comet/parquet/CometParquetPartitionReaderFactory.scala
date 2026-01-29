@@ -43,7 +43,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.util.SerializableConfiguration
 
 import org.apache.comet.{CometConf, CometRuntimeException}
-import org.apache.comet.shims.ShimSQLConf
+import org.apache.comet.shims.{CometShim, ShimSQLConf}
 
 case class CometParquetPartitionReaderFactory(
     usingDataFusionReader: Boolean,
@@ -64,7 +64,7 @@ case class CometParquetPartitionReaderFactory(
   private val pushDownDate = sqlConf.parquetFilterPushDownDate
   private val pushDownTimestamp = sqlConf.parquetFilterPushDownTimestamp
   private val pushDownDecimal = sqlConf.parquetFilterPushDownDecimal
-  private val pushDownStringPredicate = sqlConf.parquetFilterPushDownStringPredicate
+  private val pushDownStringPredicate = CometShim.isParquetFilterPushDownStringPredicate(sqlConf)
   private val pushDownInFilterThreshold = sqlConf.parquetFilterPushDownInFilterThreshold
   private val datetimeRebaseModeInRead = options.datetimeRebaseModeInRead
   private val parquetFilterPushDown = sqlConf.parquetFilterPushDown

@@ -118,12 +118,30 @@ class CometExec3_4PlusSuite extends CometTestBase {
   }
 
   // Dataset.offset API is not available before Spark 3.4
-  test("offset") {
-    withSQLConf(CometConf.COMET_SHUFFLE_MODE.key -> "jvm") {
-      checkSparkAnswer(testData.offset(90))
-      checkSparkAnswer(arrayData.toDF().offset(99))
-      checkSparkAnswer(mapData.toDF().offset(99))
+  // Skip this test for Spark 3.3
+  // Check if offset method exists on DataFrame using reflection
+  try {
+    val dfClass = classOf[org.apache.spark.sql.DataFrame]
+    val offsetMethod = dfClass.getMethod("offset", classOf[Int])
+    test("offset") {
+      withSQLConf(CometConf.COMET_SHUFFLE_MODE.key -> "jvm") {
+        val testDf = offsetMethod
+          .invoke(testData, 90.asInstanceOf[Object])
+          .asInstanceOf[org.apache.spark.sql.DataFrame]
+        checkSparkAnswer(testDf)
+        val arrayDf = offsetMethod
+          .invoke(arrayData.toDF(), 99.asInstanceOf[Object])
+          .asInstanceOf[org.apache.spark.sql.DataFrame]
+        checkSparkAnswer(arrayDf)
+        val mapDf = offsetMethod
+          .invoke(mapData.toDF(), 99.asInstanceOf[Object])
+          .asInstanceOf[org.apache.spark.sql.DataFrame]
+        checkSparkAnswer(mapDf)
+      }
     }
+  } catch {
+    case _: NoSuchMethodException |
+        _: ClassNotFoundException => // offset method doesn't exist in Spark 3.3
   }
 
   test("test BloomFilterMightContain can take a constant value input") {

@@ -32,6 +32,8 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.sql.types._
 
+import org.apache.comet.shims.CometShim
+
 object ParquetGenerator {
 
   /**
@@ -56,7 +58,7 @@ object ParquetGenerator {
     DataTypes.createDecimalType(36, 18),
     DataTypes.DateType,
     DataTypes.TimestampType,
-    DataTypes.TimestampNTZType,
+    CometShim.getTimestampNTZType,
     DataTypes.StringType,
     DataTypes.BinaryType)
 
@@ -225,7 +227,7 @@ object ParquetGenerator {
         Range(0, numRows).map(_ => new java.sql.Date(options.baseDate + r.nextInt()))
       case DataTypes.TimestampType =>
         Range(0, numRows).map(_ => new Timestamp(options.baseDate + r.nextInt()))
-      case DataTypes.TimestampNTZType =>
+      case t if CometShim.isTimestampNTZType(t) =>
         Range(0, numRows).map(_ =>
           LocalDateTime.ofInstant(
             Instant.ofEpochMilli(options.baseDate + r.nextInt()),

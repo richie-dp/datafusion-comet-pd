@@ -38,6 +38,7 @@ import org.apache.spark.sql.test.TestSparkSession
 
 import org.apache.comet.CometConf
 import org.apache.comet.CometSparkSessionExtensions.{isSpark35Plus, isSpark40Plus}
+import org.apache.comet.shims.ShimCometTPCHQuerySuite
 
 /**
  * Similar to [[org.apache.spark.sql.PlanStabilitySuite]], checks that TPC-DS Comet plans don't
@@ -61,7 +62,10 @@ import org.apache.comet.CometSparkSessionExtensions.{isSpark35Plus, isSpark40Plu
  *   SPARK_GENERATE_GOLDEN_FILES=1 mvn -pl spark -Dsuites="org.apache.spark.sql.comet.CometTPCDSV2_7_PlanStabilitySuite" test
  * }}}
  */
-trait CometPlanStabilitySuite extends DisableAdaptiveExecutionSuite with TPCDSBase {
+trait CometPlanStabilitySuite
+    extends DisableAdaptiveExecutionSuite
+    with TPCDSBase
+    with ShimCometTPCHQuerySuite {
   protected val baseResourcePath: File = {
     getWorkspaceFilePath("spark", "src", "test", "resources", "tpcds-plan-stability").toFile
   }

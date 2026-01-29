@@ -23,13 +23,14 @@ import scala.collection.mutable
 
 import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeSet, Expression, NamedExpression}
-import org.apache.spark.sql.internal.SQLConf.EXPRESSION_PROJECTION_CANDIDATE_LIMIT
+
+import org.apache.comet.shims.CometShim
 
 /**
  * A trait that provides functionality to handle aliases in the `outputExpressions`.
  */
 trait AliasAwareOutputExpression extends SQLConfHelper {
-  protected val aliasCandidateLimit: Int = conf.getConf(EXPRESSION_PROJECTION_CANDIDATE_LIMIT)
+  protected val aliasCandidateLimit: Int = CometShim.getExpressionProjectionCandidateLimit(conf)
   protected def outputExpressions: Seq[NamedExpression]
 
   /**
@@ -73,16 +74,7 @@ trait AliasAwareOutputExpression extends SQLConfHelper {
    */
   protected def projectExpression(expr: Expression): Stream[Expression] = {
     val outputSet = AttributeSet(outputExpressions.map(_.toAttribute))
-    expr.multiTransformDown {
-      // Mapping with aliases
-      case e: Expression if aliasMap.contains(e.canonicalized) =>
-        aliasMap(e.canonicalized).toSeq ++ (if (e.containsChild.nonEmpty) Seq(e) else Seq.empty)
-
-      // Prune if we encounter an attribute that we can't map and it is not in output set.
-      // This prune will go up to the closest `multiTransformDown()` call and returns `Stream.empty`
-      // there.
-      case a: Attribute if !outputSet.contains(a) => Seq.empty
-    }.toStream
+    CometShim.projectExpression(expr, aliasMap.mapValues(_.toSeq).toMap, outputSet)
   }
 
   def generateCartesianProduct[T](elementSeqs: Seq[() => Seq[T]]): Stream[Seq[T]] = {

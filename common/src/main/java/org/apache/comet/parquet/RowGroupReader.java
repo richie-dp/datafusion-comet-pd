@@ -62,12 +62,10 @@ public class RowGroupReader implements PageReadStore {
     return pageReader;
   }
 
-  @Override
   public Optional<PrimitiveIterator.OfLong> getRowIndexes() {
     return rowRanges == null ? Optional.empty() : Optional.of(rowRanges.iterator());
   }
 
-  @Override
   public Optional<Long> getRowIndexOffset() {
     return this.rowIndexOffset < 0L ? Optional.empty() : Optional.of(this.rowIndexOffset);
   }

@@ -91,6 +91,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.spark.sql.execution.metric.SQLMetric;
 
+import org.apache.comet.shims.ShimParquet;
+
 import static org.apache.parquet.hadoop.ParquetFileWriter.EFMAGIC;
 import static org.apache.parquet.hadoop.ParquetFileWriter.MAGIC;
 
@@ -353,7 +355,8 @@ public class FileReader implements Closeable {
     if (block.getRowCount() == 0) {
       throw new RuntimeException("Illegal row group of 0 rows");
     }
-    this.currentRowGroup = new RowGroupReader(block.getRowCount(), block.getRowIndexOffset());
+    this.currentRowGroup =
+        new RowGroupReader(block.getRowCount(), ShimParquet.getRowIndexOffset(block));
     // prepare the list of consecutive parts to read them in one scan
     List<ConsecutivePartList> allParts = new ArrayList<>();
     ConsecutivePartList currentParts = null;

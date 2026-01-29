@@ -49,7 +49,23 @@ import org.apache.comet.shims.ShimCometTPCHQuerySuite
  *     ./mvnw -Dsuites=org.apache.spark.sql.CometTPCHQuerySuite test
  * }}}
  */
-class CometTPCHQuerySuite extends QueryTest with TPCBase with ShimCometTPCHQuerySuite {
+class CometTPCHQuerySuite
+    extends QueryTest
+    with TPCBase
+    with ShimCometTPCHQuerySuite
+    with CometSQLQueryTestHelper {
+  // Resolve conflicts between ShimCometTPCHQuerySuite and CometSQLQueryTestHelper
+  // CometSQLQueryTestHelper provides the actual implementations
+  override protected val emptySchema: String = CometSQLQueryTestHelper.this.emptySchema
+  override protected def replaceNotIncludedMsg(line: String): String =
+    CometSQLQueryTestHelper.this.replaceNotIncludedMsg(line)
+  override protected def getNormalizedResult(
+      session: SparkSession,
+      sql: String): (String, Seq[String]) =
+    CometSQLQueryTestHelper.this.getNormalizedResult(session, sql)
+  override protected def handleExceptions(
+      result: => (String, Seq[String])): (String, Seq[String]) =
+    CometSQLQueryTestHelper.this.handleExceptions(result)
 
   private val tpchDataPath = sys.env.get("SPARK_TPCH_DATA")
 
@@ -141,7 +157,9 @@ class CometTPCHQuerySuite extends QueryTest with TPCBase with ShimCometTPCHQuery
     val shouldSortResults = sortMergeJoinConf != conf // Sort for other joins
     withSQLConf(conf.toSeq: _*) {
       try {
-        val (schema, output) = handleExceptions(getNormalizedQueryExecutionResult(spark, query))
+        // Use CometSQLQueryTestHelper.handleExceptions explicitly to avoid ambiguity
+        val (schema, output) =
+          this.handleExceptions(getNormalizedQueryExecutionResult(spark, query))
         val queryString = query.trim
         val outputString = output.mkString("\n").replaceAll("\\s+$", "")
         if (regenerateGoldenFiles) {

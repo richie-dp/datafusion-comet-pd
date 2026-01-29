@@ -39,6 +39,7 @@ import org.apache.spark.sql.internal.SQLConf.ParquetOutputTimestampType
 import org.apache.spark.sql.types._
 
 import org.apache.comet.CometSparkSessionExtensions.isSpark40Plus
+import org.apache.comet.shims.CometShim
 import org.apache.comet.testing.{DataGenOptions, ParquetGenerator}
 
 class CometFuzzTestSuite extends CometTestBase with AdaptiveSparkPlanHelper {
@@ -340,19 +341,23 @@ class CometFuzzTestSuite extends CometTestBase with AdaptiveSparkPlanHelper {
         Seq(true, false).foreach { inferTimestampNtzEnabled =>
           Seq(true, false).foreach { int96TimestampConversion =>
             Seq(true, false).foreach { int96AsTimestamp =>
-              withSQLConf(
+              val confs = scala.collection.mutable.Map[String, String](
                 CometConf.COMET_ENABLED.key -> "true",
                 SQLConf.SESSION_LOCAL_TIMEZONE.key -> tz,
                 SQLConf.PARQUET_INT96_AS_TIMESTAMP.key -> int96AsTimestamp.toString,
-                SQLConf.PARQUET_INT96_TIMESTAMP_CONVERSION.key -> int96TimestampConversion.toString,
-                SQLConf.PARQUET_INFER_TIMESTAMP_NTZ_ENABLED.key -> inferTimestampNtzEnabled.toString) {
+                SQLConf.PARQUET_INT96_TIMESTAMP_CONVERSION.key -> int96TimestampConversion.toString)
+              // PARQUET_INFER_TIMESTAMP_NTZ_ENABLED is only available in Spark 3.4+
+              // In Spark 3.3, this config doesn't exist, so we skip setting it
+              // The test will still run, but without this configuration
+              withSQLConf(confs.toSeq: _*) {
 
                 val df = spark.read.parquet(filename.toString)
                 df.createOrReplaceTempView("t1")
 
                 def hasTemporalType(t: DataType): Boolean = t match {
-                  case DataTypes.DateType | DataTypes.TimestampType |
-                      DataTypes.TimestampNTZType =>
+                  case DataTypes.DateType | DataTypes.TimestampType =>
+                    true
+                  case t if CometShim.isTimestampNTZType(t) =>
                     true
                   case t: StructType => t.exists(f => hasTemporalType(f.dataType))
                   case t: ArrayType => hasTemporalType(t.elementType)

@@ -30,6 +30,7 @@ import org.apache.spark.sql.types._
 import org.apache.comet.serde.ExprOuterClass
 import org.apache.comet.serde.ExprOuterClass.Expr
 import org.apache.comet.serde.QueryPlanSerde.serializeDataType
+import org.apache.comet.shims.CometShim
 
 object SourceFilterSerde extends Logging {
 
@@ -93,7 +94,7 @@ object SourceFilterSerde extends Logging {
               valueIsSet = false
               logWarning(s"Unexpected timestamp type '${value.getClass}' for value '$value'")
           }
-        case _: TimestampNTZType =>
+        case t if CometShim.isTimestampNTZType(t) =>
           value match {
             case v: LocalDateTime =>
               exprBuilder.setLongVal(DateTimeUtils.localDateTimeToMicros(v))

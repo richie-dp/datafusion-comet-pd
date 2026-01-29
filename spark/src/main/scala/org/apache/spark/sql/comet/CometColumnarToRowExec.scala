@@ -45,6 +45,7 @@ import org.apache.spark.sql.vectorized.{ColumnarBatch, ColumnVector}
 import org.apache.spark.util.{SparkFatalException, Utils}
 import org.apache.spark.util.io.ChunkedByteBuffer
 
+import org.apache.comet.shims.CometShim
 import org.apache.comet.vector.CometPlainVector
 
 /**
@@ -125,7 +126,8 @@ case class CometColumnarToRowExec(child: SparkPlan)
 
         val mode = cometBroadcastExchange.get.mode
         val relation = mode.transform(rows, Some(numOutputRows.value))
-        val broadcasted = sparkContext.broadcastInternal(relation, serializedOnly = true)
+        val broadcasted =
+          CometShim.broadcastInternal(sparkContext, relation, serializedOnly = true)
         val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
         SQLMetrics.postDriverMetricUpdates(sparkContext, executionId, metrics.values.toSeq)
         promise.trySuccess(broadcasted)
